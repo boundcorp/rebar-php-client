@@ -1,5 +1,5 @@
 <?
-$REBAR_DEBUG = 1;
+$REBAR_DEBUG = 0;
 $rebar_api_url = 'http://rebarsecure.com/';
 $rebar_client_domain = $_SERVER['HTTP_HOST'];
 require_once('blank-conf.php');
@@ -63,34 +63,37 @@ function rebar_update_lead_data($fields) {
 				'country' => @$fields['country'],
 				'zipcode' => @$fields['zipcode'],
 		));
+		global $_rebar_lead_id;
 		$_rebar_lead_id = $lead->lead_id;
 		rebar_set_cached_val('lead_id', $_rebar_lead_id, 86400*365);
 }
 
 function rebar_get_cart_info() {
-		rebar_ensure_cart_exists_or_make_one();
 		$obj = rebar_post('crm/cart_info', array());
-		$obj = rebar_update_cart_cookies_from_obj($obj);
+		rebar_update_cart_cookies_from_obj($obj);
 		global $_rebar_cart;
 		$_rebar_cart = $obj;
 		return $obj;
 }
 
-function rebar_update_cart_cookies_from_obj($obj) {
-		if(isset($obj->products)) rebar_set_cached_val('cart_count', count($obj->products));
-		if(isset($obj->subscription_products)) rebar_set_cached_val('subscription_count', count($obj->subscription_products));
-		if(isset($obj->error) && ($obj->error == 'No such cart' ||
+
+function _rebar_cart_is_locked($obj) {
+		return (isset($obj->error) && ($obj->error == 'No such cart' ||
 				$obj->error == 'Invalid cart_id')
-			 	|| @$obj->payment_success) {
-				$obj =rebar_post("crm/create_cart");
+			 	|| @$obj->payment_success);
+}
+function rebar_update_cart_cookies_from_obj($obj) {
+		if(isset($obj->items)) rebar_set_cached_val('cart_count', count($obj->items));
+		if(_rebar_cart_is_locked($obj)) {
 				global $_rebar_cart_id, $_rebar_cart, $_rebar_lead_id, $_rebar_lead;
+				$obj =rebar_post("crm/create_cart", array('lead_id' => $_rebar_lead_id));
 				$_rebar_cart = $obj;
 				$_rebar_lead = $obj->lead;
 				$_rebar_cart_id = $obj->cart_id;
 				$_rebar_lead_id = $obj->lead_id;
 				rebar_set_cached_val('cart_id', $_rebar_cart_id);
 				rebar_set_cached_val('lead_id', $_rebar_lead_id);
-				return $obj;
+				return false;
 		}
 		return $obj;
 }
@@ -104,13 +107,39 @@ function rebar_authorize_cart($token) {
 		rebar_update_cart_cookies_from_obj($obj);
 		return $obj;
 }
+function rebar_autofinalize_cart($token) {
+		rebar_ensure_cart_exists_or_make_one();
+		$obj = rebar_post('crm/purchase_cart', array(
+				'token' => $token,
+				'autofinalize' => 'true'
+		));
+		rebar_update_cart_cookies_from_obj($obj);
+		return $obj;
+}
+
+function rebar_remove_from_cart($product_id) {
+		rebar_ensure_cart_exists_or_make_one();
+		$obj = rebar_post('crm/remove_from_cart', array(
+				'product_id' => $product_id
+		));
+}
+
+function rebar_update_cart_quantities($quantities) {
+		rebar_ensure_cart_exists_or_make_one();
+		$obj = rebar_post('crm/update_cart_quantities', $quantities);
+}
 
 function rebar_add_to_cart($product_id, $first_attempt=true) {
 		rebar_ensure_cart_exists_or_make_one();
 		$obj = rebar_post('crm/add_to_cart', array(
 				'product_id' => $product_id
 		));
-		if(!rebar_update_cart_cookies_from_obj($obj) && $first_attempt) rebar_add_to_cart($product_id, false);
+
+		if(_rebar_cart_is_locked($obj) && $first_attempt)
+		{
+				rebar_update_cart_cookies_from_obj($obj);
+				$obj = rebar_add_to_cart($product_id, false);
+		}
 		return $obj;
 }
 
@@ -133,11 +162,11 @@ function rebar_post($stub, $fields=array()) {
 
 function rebar_params($extra_params) {
 		global $rebar_secret, $rebar_environment;
-		return array_merge(array(
+		return array_merge($extra_params, array(
 				'cart_id' => rebar_get_cached_val('cart_id'),
 				'environment' => $rebar_environment,
 				'secret' => $rebar_secret
-		), $extra_params);
+		));
 }
 
 
@@ -183,44 +212,39 @@ function post_data($url, $fields) {
 		return $result;
 }
 
-function rebar_purchase_cart($cart_id) {
-		//OLD WAY OF DOING IT
-		//$url = $REBAR.'/crm/purchase_cart';
-		//$create_cart_response = rebar_post($url, array(
-		//'cart_id' => $cart_id,
-		//'token' => $token,
-		//'environment' => $brand_id,
-		//'secret' => $brand_secret));
-
-		//NEW WAY
-		$obj = rebar_post('crm/purchase_cart', array('cart_id' => $cart_id));
+function rebar_purchase_cart($token) {
+		rebar_ensure_cart_exists_or_make_one();
+		$obj = rebar_post('crm/purchase_cart', array(
+				'token' => $token
+		));
+		rebar_update_cart_cookies_from_obj($obj);
 		return $obj;
 }
 
 
 function rebar_output_shipping_data_form($action='') {
-	global $REBAR_DEBUG, $rebar_environment;
+	global $REBAR_DEBUG, $rebar_environment, $_rebar_lead;
 	?>
 
 
 	<script src="jquery.validation.js"></script>
-		<form id="validatedLeadForm" class="leadform" action="<?=$action?>" method="post">
-	                      <input type=text class="name" name="first_name" value="First Name"><br /><br />
+		<form id="validatedLeadForm" class="pure-form" action="<?=$action?>" method="post">
+	                      <input type=text class="name" name="first_name" value="<?=@$_rebar_lead->first_name?>" placeholder="First Name"><br /><br />
 
-	                       <input type=text class="name" name="last_name" value="Last Name"><br /><br />
+	                       <input type=text class="name" name="last_name" value="<?=@$_rebar_lead->last_name?>" placeholder="Last Name"><br /><br />
 
-	                       <input type="email" class="name" name="email" value="email"><br /><br />
+	                       <input type="email" class="name" name="email" value="<?=@$_rebar_lead->email?>" placeholder="email"><br /><br />
 
 
-	                      <input type=text class="name" name="address_one" value="address_one"><br /><br />
+	                      <input type=text class="name" name="address_one" value="<?=@$_rebar_lead->address_one?>" placeholder="address_one"><br /><br />
 
-	                      <input type=text class="name" name="address_two" value="address_two"><br /><br />
+	                      <input type=text class="name" name="address_two" value="<?=@$_rebar_lead->address_two?>" placeholder="Address Line 2"><br /><br />
 
-	                      <input type=text class="name" name="city" value="City"><br /><br />
+	                      <input type=text class="name" name="city" value="<?=@$_rebar_lead->city?>" placeholder="City"><br /><br />
 
-	                       <input type=text class="name" name="region" value="region"><br /><br />
+	                       <input type=text class="name" name="region" value="<?=@$_rebar_lead->region?>" placeholder="State or Region"><br /><br />
 
-	                       <input type=text class="name" name="country" value="USA"><br /><br />
+	                       <input type=text class="name" name="country" value="<?=@$_rebar_lead->country?>" placeholder="Country"><br /><br />
 
 
 
@@ -234,7 +258,7 @@ function rebar_output_shipping_data_form($action='') {
 	                }
 
 function rebar_output_billing_data_form($action='') {
-	global $REBAR_DEBUG, $rebar_environment;
+	global $REBAR_DEBUG, $rebar_environment, $_rebar_cart;
 	?>
 			<h2> Provide Your Credit Card Details Below </h2> <br/>
 			<? if($REBAR_DEBUG == 1) { ?>
@@ -248,13 +272,6 @@ function rebar_output_billing_data_form($action='') {
 
 			<script>
 			var billing_test_details = {
-					'authnet_good_hot_test': {
-						'first_name': 'Leeward',
-						'last_name': 'Bound',
-						'email': 'l@lwb.co',
-						'number': '371538646043000',
-						'month': '9', 'year': '2017', 'cvv': '4506'
-					},
 					'authnet_good_faux_test': {
 						'first_name': 'REBAR',
 						'last_name': 'POUND',
@@ -292,19 +309,19 @@ function rebar_output_billing_data_form($action='') {
 					 <form action='//rebarsecure.com/v1/public/payment_methods' class="form-horizontal salespage_form ratchet"  method="post" class="ratchet-vault">
 								 <!-- Brand Environment (usually hidden): --><input name="environment" class="name" value="<?=$rebar_environment?>" type="hidden">
 								 <div style="color:red" class="billing_error" id="billing_error_first_name"></div>
-								 <input type=text name="first_name" class="name" value="<?=@$_rebar_cart->lead->first_name?>"><br /><br />
+								 <input type=text placeholder='First Name' name="first_name" class="name" value="<?=@$_rebar_cart->lead->first_name?>"><br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_last_name"></div>
-								 <input type=text name="last_name" class="name" value="<?=@$_rebar_cart->lead->last_name?>"><br /><br />
+								 <input type=text placeholder='Last Name' name="last_name" class="name" value="<?=@$_rebar_cart->lead->last_name?>"><br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_email"></div>
-								 <input type=text name="email" class="name" value="<?=@$_rebar_cart->lead->email?>"><br /><br />
+								 <input type=text placeholder='Email' name="email" class="name" value="<?=@$_rebar_cart->lead->email?>"><br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_number"></div>
-								 <input type=text class="name" name="number" value="<?=@$_rebar_cart->lead->number?>"><br /><br />
+								 <input type=text placeholder='Card Number' class="name" name="number" value="<?=@$_rebar_cart->lead->number?>"><br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_month"></div>
-								 <input type=text class="name" name="month" value="<?=@$_rebar_cart->lead->month?>"><br /><br />
+								 <input type=text placeholder='Expiry Month' class="name" name="month" value="<?=@$_rebar_cart->lead->month?>"><br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_year"></div>
-								 <input type=text name="year" class="name" value="<?=@$_rebar_cart->lead->year?>"> <br /><br />
+								 <input type=text placeholder='Expiry Year' name="year" class="name" value="<?=@$_rebar_cart->lead->year?>"> <br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_cvv"></div>
-								 <input type=text name="cvv" class="name" value="<?=@$_rebar_cart->lead->cvv?>"> <br /><br />
+								 <input type=text placeholder='CVV' name="cvv" class="name" value="<?=@$_rebar_cart->lead->cvv?>"> <br /><br />
 								 <input type="image" width="460" src="theme/images/purchase.png" id="vaultthis" name="vault" value="BUY NOW">
 				 </form>
  <div id="checkoutform" style="display:none">
@@ -313,7 +330,8 @@ function rebar_output_billing_data_form($action='') {
        Authorizing...
     </form>
  </div>
-<script type="text/javascript" src="./jquery.js"></script>
+<script type="text/javascript" src="jquery.js"></script>
+
 <script>
 
 // Use this to vault ratchet details
