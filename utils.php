@@ -28,6 +28,31 @@ function rebar_set_cached_val($name, $val, $ttl=86400) {
 }
 
 
+function rebar_track_visitor() {
+		global $_rebar_visitor_id, $_rebar_visitor;
+		if(!empty($_rebar_visitor_id)) return $_rebar_visitor_id;
+		$_rebar_visitor_id = rebar_get_cached_val('visitor_id');
+		$pass_headers = array('HTTP_HOST', 'PATH_INFO', 'HTTP_USER_AGENT', 'REMOTE_ADDR',
+				'HTTP_REFERER', 'HTTP_X_FORWARDED_FOR', 'QUERY_STRING', 'REQUEST_URI');
+		$pass_gets = array_keys($_GET); $info=array();
+		$id = empty($_rebar_visitor_id) ? '' : $_rebar_visitor_id;
+		foreach ($pass_headers as $h) {
+				if (isset($_SERVER[$h])) {
+								$info[$h] = $_SERVER[$h];
+						} else {
+								$info[$h] = '';
+						}
+		}
+		$i=base64_encode(json_encode($info));
+
+		$_rebar_visitor =rebar_post("crm/track_visit?_id=$id&i=$i");
+		$_rebar_visitor_id = $_rebar_visitor->visitor_id;
+		global $_rebar_lead_id, $_rebar_lead;
+		$_rebar_lead = $_rebar_visitor->lead;
+		$_rebar_lead_id = @$_rebar_visitor->lead->lead_id;
+		return rebar_set_cached_val('visitor_id', $_rebar_visitor_id, 30*86400);
+}
+
 function rebar_ensure_cart_exists_or_make_one() {
 		global $_rebar_cart_id, $_rebar_cart, $_rebar_lead_id;
 		rebar_ensure_lead_exists_or_make_one();
@@ -40,19 +65,23 @@ function rebar_ensure_cart_exists_or_make_one() {
 }
 
 function rebar_ensure_lead_exists_or_make_one() {
-		global $_rebar_lead_id, $_rebar_lead;
-		$_rebar_lead_id = rebar_get_cached_val('lead_id');
+		rebar_track_visitor();
+		global $_rebar_lead_id, $_rebar_lead, $_rebar_visitor_id;
 		if(empty($_rebar_lead_id)) {
-				$_rebar_lead =rebar_post("crm/create_lead");
+				$_rebar_lead_id = rebar_get_cached_val('lead_id');
+		}
+		if(empty($_rebar_lead_id)) {
+				$_rebar_lead =rebar_post("crm/create_lead", array('visitor_id', $_rebar_visitor_id));
 				$_rebar_lead_id = $_rebar_lead->lead_id;
 				rebar_set_cached_val('lead_id', $_rebar_lead_id, 86400*365);
 		}
 }
 function rebar_update_lead_data($fields) {
 		rebar_ensure_lead_exists_or_make_one();
-		global $_rebar_lead_id;
+		global $_rebar_lead_id, $_rebar_visitor_id;
 		$lead = rebar_post('crm/create_lead', array(
-				'lead_id' => $_rebar_lead_id,
+				#'lead_id' => $_rebar_lead_id,
+				'visitor_id' => $_rebar_visitor_id,
 				'first_name' => @$fields['first_name'],
 				'last_name' => @$fields['last_name'],
 				'email' => @$fields['email'],
