@@ -98,11 +98,12 @@ function rebar_update_lead_data($fields) {
 }
 
 function rebar_get_cart_info() {
+		global $_rebar_cart;
+		if(!empty($_rebar_cart)) return $_rebar_cart;
 		$obj = rebar_post('crm/cart_info', array());
 		rebar_update_cart_cookies_from_obj($obj);
-		global $_rebar_cart;
 		$_rebar_cart = $obj;
-		return $obj;
+		return $_rebar_cart;
 }
 
 
@@ -242,12 +243,13 @@ function post_data($url, $fields) {
 }
 
 function rebar_purchase_cart($token) {
+		global $_rebar_cart;
 		rebar_ensure_cart_exists_or_make_one();
-		$obj = rebar_post('crm/purchase_cart', array(
+		$_rebar_cart = rebar_post('crm/purchase_cart', array(
 				'token' => $token
 		));
-		rebar_update_cart_cookies_from_obj($obj);
-		return $obj;
+		rebar_update_cart_cookies_from_obj($_rebar_cart);
+		return $_rebar_cart;
 }
 
 
@@ -258,30 +260,57 @@ function rebar_output_shipping_data_form($action='') {
 
 	<script src="jquery.validation.js"></script>
 		<form id="validatedLeadForm" class="pure-form" action="<?=$action?>" method="post">
-	                      <input type=text class="name" name="first_name" value="<?=@$_rebar_lead->first_name?>" placeholder="First Name"><br /><br />
+				<?
+	if(!empty($_rebar_lead)){
+?>
+		<input type="radio" class="new_or_old_lead" name="lead_id" id="new_lead_radio" value=""><label for="new_lead_radio">New shipping details</label>
+- or -
+		<input type="radio" checked class="new_or_old_lead" name="lead_id" id="old_lead_radio" value="<?=$_rebar_lead->lead_id?>"><label for="old_lead_radio">Re-use these details below...</label>
+<br />
+			<script>
+			$(function() {
+					f = $('#validatedLeadForm');
+					$('input.new_or_old_lead[type=radio]', f).change(function() {
+							if($(this).val() == '') {
+									$('input.name', f).removeAttr('disabled');
+							}
+							else {
+									$('input.name', f).attr('disabled', 'disabled');
+							}
+					})
+			})
 
-	                       <input type=text class="name" name="last_name" value="<?=@$_rebar_lead->last_name?>" placeholder="Last Name"><br /><br />
+</script>
+<?
+	}
+?>
+	                      <input type=text class="name new_lead" name="first_name" required value="<?=@$_rebar_lead->first_name?>" placeholder="First Name"><br /><br />
 
-	                       <input type="email" class="name" name="email" value="<?=@$_rebar_lead->email?>" placeholder="email"><br /><br />
+	                       <input type=text class="name new_lead" name="last_name" required value="<?=@$_rebar_lead->last_name?>" placeholder="Last Name"><br /><br />
 
-
-	                      <input type=text class="name" name="address_one" value="<?=@$_rebar_lead->address_one?>" placeholder="address_one"><br /><br />
-
-	                      <input type=text class="name" name="address_two" value="<?=@$_rebar_lead->address_two?>" placeholder="Address Line 2"><br /><br />
-
-	                      <input type=text class="name" name="city" value="<?=@$_rebar_lead->city?>" placeholder="City"><br /><br />
-
-	                       <input type=text class="name" name="region" value="<?=@$_rebar_lead->region?>" placeholder="State or Region"><br /><br />
-
-	                       <input type=text class="name" name="country" value="<?=@$_rebar_lead->country?>" placeholder="Country"><br /><br />
+	                       <input type="email" class="name new_lead" name="email" required value="<?=@$_rebar_lead->email?>" placeholder="email"><br /><br />
 
 
+	                      <input type=text class="name new_lead" name="address_one" required value="<?=@$_rebar_lead->address_one?>" placeholder="address_one"><br /><br />
 
-					<input type="image" src="theme/images/continue.png" width="470" >
+	                      <input type=text class="name new_lead" name="address_two" value="<?=@$_rebar_lead->address_two?>" placeholder="Address Line 2"><br /><br />
+
+	                      <input type=text class="name new_lead" name="city" required value="<?=@$_rebar_lead->city?>" placeholder="City"><br /><br />
+
+	                       <input type=text class="name new_lead" name="region" value="<?=@$_rebar_lead->region?>" placeholder="State or Region"><br /><br />
+
+	                       <input type=text class="name new_lead" name="country" required value="<?=@$_rebar_lead->country?>" placeholder="Country"><br /><br />
+
+
+
+					<input type="submit" class="btn btn-success btn-lg btn-block" value="Next" >
 
 	                    </form>
-	                    <script>
-							$("#validatedLeadForm").validate();
+	                   <script>
+	                    $(function() {
+	                    	$("#validatedLeadForm").validate();
+
+	                    })
 						</script>
 	                    <?
 	                }
@@ -335,23 +364,40 @@ function rebar_output_billing_data_form($action='') {
 			});
 			</script>
 			<? } ?>
-					 <form action='//rebarsecure.com/v1/public/payment_methods' class="form-horizontal salespage_form ratchet"  method="post" class="ratchet-vault">
+<?
+
+
+
+
+			if(!empty($_rebar_cart->errors))
+			{
+
+			foreach($_rebar_cart->errors as $i => $e)
+				{
+					echo "<li>".$e."</li>";
+				}
+
+			}
+
+			?>
+
+					 <form action='//rebarsecure.com/v1/public/payment_methods' class="form-horizontal salespage_form ratchet"  method="post" >
 								 <!-- Brand Environment (usually hidden): --><input name="environment" class="name" value="<?=$rebar_environment?>" type="hidden">
 								 <div style="color:red" class="billing_error" id="billing_error_first_name"></div>
-								 <input type=text placeholder='First Name' name="first_name" class="name" value="<?=@$_rebar_cart->lead->first_name?>"><br /><br />
+								 <input type=text placeholder='First Name' name="first_name" class="name form-control" value="<?=@$_rebar_cart->lead->first_name?>"><br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_last_name"></div>
-								 <input type=text placeholder='Last Name' name="last_name" class="name" value="<?=@$_rebar_cart->lead->last_name?>"><br /><br />
+								 <input type=text placeholder='Last Name' name="last_name" class="name form-control" value="<?=@$_rebar_cart->lead->last_name?>"><br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_email"></div>
-								 <input type=text placeholder='Email' name="email" class="name" value="<?=@$_rebar_cart->lead->email?>"><br /><br />
+								 <input type=text placeholder='Email' name="email" class="name form-control" value="<?=@$_rebar_cart->lead->email?>"><br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_number"></div>
-								 <input type=text placeholder='Card Number' class="name" name="number" value="<?=@$_rebar_cart->lead->number?>"><br /><br />
+								 <input type=text placeholder='Card Number' class="name form-control" name="number" value="<?=@$_rebar_cart->lead->number?>"><br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_month"></div>
-								 <input type=text placeholder='Expiry Month' class="name" name="month" value="<?=@$_rebar_cart->lead->month?>"><br /><br />
+								 <input type=text placeholder='Expiry Month' class="name form-control" name="month" value="<?=@$_rebar_cart->lead->month?>"><br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_year"></div>
-								 <input type=text placeholder='Expiry Year' name="year" class="name" value="<?=@$_rebar_cart->lead->year?>"> <br /><br />
+								 <input type=text placeholder='Expiry Year' name="year" class="name form-control" value="<?=@$_rebar_cart->lead->year?>"> <br /><br />
 								 <div style="color:red" class="billing_error" id="billing_error_cvv"></div>
-								 <input type=text placeholder='CVV' name="cvv" class="name" value="<?=@$_rebar_cart->lead->cvv?>"> <br /><br />
-								 <input type="image" width="460" src="theme/images/purchase.png" id="vaultthis" name="vault" value="BUY NOW">
+								 <input type=text placeholder='CVV' name="cvv" class="name form-control" value="<?=@$_rebar_cart->lead->cvv?>"> <br /><br />
+								 <input type="submit" width="460" src="theme/images/purchase.png" class="btn btn-success btn-lg btn-block" id="vaultthis" name="vault" value="BUY NOW">
 				 </form>
  <div id="checkoutform" style="display:none">
     <form id="hiddencheckout" action="<?=$action?>" method="post">
