@@ -76,7 +76,11 @@ class rebar {
         // There is a lot of information in the visitor object. I think once the tracking is fired, you could potentially use that call to set all the values locally.
         $obj = $this->rebar_post("crm/track_visit?_id=$id&i=$i");
         $this->cart->visitor_id = $obj->visitor_id;
-        return $this->rebar_set_cached_val('visitor_id', $this->cart->visitor_id, 30 * 86400);
+        if(!empty($obj->lead->lead_id)){
+            $this->rebar_set_cached_val('lead_id', $this->cart->lead_id, 86400 * 365);
+            $this->cart->lead_id = $obj->lead->lead_id;
+        }
+        return $this->rebar_set_cached_val('visitor_id', $this->cart->visitor_id, 86400 * 30);
     }
 
     function rebar_ensure_cart_exists_or_make_one() {
@@ -100,12 +104,13 @@ class rebar {
     }
 
     function rebar_update_lead_data($fields) {
+        $this->cart->lead_id = $fields->lead_id;
         $this->rebar_ensure_lead_exists_or_make_one();
         $lead = $this->rebar_post('crm/create_lead', array(
                 'lead_id' => $this->cart->lead_id,
-                'brand_id' => $this->cart->brand_id,
-                'product_id' => $this->cart->product_id,
-                'visitor_id' => $this->cart->visitor_id,
+                'brand_id' => $fields->brand_id,
+                'product_id' => $fields->product_id,
+                'visitor_id' => $fields->visitor_id,
                 'first_name' => $fields->firstName,
                 'last_name' => $fields->lastName,
                 'email' => $fields->email,
@@ -115,8 +120,8 @@ class rebar {
                 'region' => $fields->state,
                 'country' => $fields->country,
                 'zipcode' => $fields->zip,
-                'affiliate_id' => $fields->subid,
-                'sub_id' => $fields->lp
+                'affiliate_id' => $fields->aff_id,
+                'sub_id' => $fields->sub_id
         ));
 
         $this->cart->lead_id = $lead->lead_id;
