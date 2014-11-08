@@ -10,11 +10,16 @@ $config['base_config'] = '../app/config';
 include_once($config['base_config'] . '/rebar.php');
 
 $rebar = new rebar();
-$rebar->cart->brand_id = '5371cbcd9688a622e476ab5bb7cd9832de680353';
-$rebar->cart->product_id = '34d3e72e3d57d839b7ae0291c5e62a546d032a85';
-$rebar->cart->affiliate_id = $aff_id;
-$rebar->cart->sub_id = $sub_id;
-$rebar->rebar_track_visitor();
+
+if(count($_POST) > 0){
+    $rebar->rebar_update_lead_data($_POST);
+} else {
+    $rebar->cart->brand_id = '5371cbcd9688a622e476ab5bb7cd9832de680353';
+    $rebar->cart->product_id = '34d3e72e3d57d839b7ae0291c5e62a546d032a85';
+    $rebar->cart->affiliate_id = $aff_id;
+    $rebar->cart->sub_id = $sub_id;
+    $rebar->rebar_track_visitor();
+}
 ?>
 <!DOCTYPE html>
 <html xmlns="//www.w3.org/1999/xhtml" lang="en">
@@ -117,16 +122,9 @@ $rebar->rebar_track_visitor();
                             </select>
                         </div>
                     </div>
-                    <input name="bd_submit_form" class="bd_submit_form" type="button" value="Get Qualification Status" />
-                    <small>We take your privacy seriously. By clicking the button, you agree to our</small>
+                    <input name="bd_submit_form" class="bd_submit_form" type="submit" value="Get Qualification Status" />
                 </div>
                 <!--step2 ends here-->
-
-                <div class="step">
-                    <h1>Thanks <span>for your request!</span></h1>
-                    <div class="thanku-content">Your information has been submitted. Our representative will Get in touch with you shortly</div>
-                </div>
-                <!--step3 ends here-->
 
                 <div id="ic-loading" class="ic-loading hidden">
                     <img src="images/loadingbar.gif" alt="Loading" /><br /><br />
@@ -138,32 +136,12 @@ $rebar->rebar_track_visitor();
 
         <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.0/jquery.min.js"></script>
         <script src="js/jquery.magnific-popup.js"></script>
-        <script src="js/contact.1.3.1.js"></script>
 
         <script>
             $(document).ready(function () {
                 $("form").submit(function (e) {
                     $('.step.show').hide();
                     $('.ic-loading').show();
-
-                    var firstName = $('input[name=firstName]').val();
-                    var lastName = $('input[name=lastName]').val();
-                    var phone = $('input[name=phone]').val();
-                    var email = $('input[name=email]').val();
-                    var state = $('select[name=state]').val();
-                    var zip = $('input[name=zip]').val();
-                    var message = $('textarea[name=message]').val();
-                    var lp = $('input[name=lp]').val();
-                    var aff_id = $('input[name=aff_id]').val();
-                    var sub_id = $('input[name=sub_id]').val();
-                    var brand_id = $('input[name=brand_id]').val();
-                    var product_id = $('input[name=product_id]').val();
-                    var visitor_id = $('input[name=visitor_id]').val();
-                    var lead_id = $('input[name=lead_id]').val();
-
-                    var request = {firstName: firstName, lastName: lastName, phone: phone, email: email, state: state, zip: zip, message: message, lp: lp, aff_id: aff_id, sub_id: sub_id, brand_id: brand_id, product_id: product_id, visitor_id: visitor_id, lead_id: lead_id};
-                    return processLead(request);
-
                 });
             });
         </script>

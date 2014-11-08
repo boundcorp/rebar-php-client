@@ -104,7 +104,7 @@ class rebar {
     }
 
     function rebar_update_lead_data($fields) {
-        $this->cart->lead_id = $fields->lead_id;
+        $this->cart->lead_id = (object) $fields->lead_id;
         $this->rebar_ensure_lead_exists_or_make_one();
         $lead = $this->rebar_post('crm/create_lead', array(
                 'lead_id' => $this->cart->lead_id,
