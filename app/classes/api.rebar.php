@@ -21,6 +21,13 @@ class rebar {
         $this->domain = $_SERVER['HTTP_HOST'];
     }
 
+    /**
+     * Count number of items in the cart
+     * You must call rebar_track_visitor before calling this so that you can populate the cart value.
+     *
+     * @param string $name
+     * @return string
+     */
     function rebar_cart_size() {
         $size = 0;
         if ($this->cart->items > 0) {
@@ -31,6 +38,12 @@ class rebar {
         return (int) $size;
     }
 
+    /**
+     * Get Value from Cookie
+     *
+     * @param string $name
+     * @return string
+     */
     function rebar_get_cached_val($name) {
         $var = "_rebar_${name}";
         global $$var;
@@ -41,12 +54,23 @@ class rebar {
         return $$var;
     }
 
+    /**
+     * Set Value in Cookie
+     *
+     * @param string $name
+     * @param string $val
+     * @param string $ttl
+     */
     function rebar_set_cached_val($name, $val, $ttl = 86400) {
         $this->debug_print("<br />Setting COOKIE: $name = $val (ttl: $ttl, path: /, domain: .{$this->domain})<br /><hr />");
         if (!empty($val))
             setcookie("rebar_${name}", $val, time() + $ttl, '/', '.' . $this->domain);
     }
 
+    /**
+     * Track Visitor
+     * Send visitor headers and fields.
+     */
     function rebar_track_visitor() {
         if (!empty($this->cart->visitor_id))
             return $this->cart->visitor_id;
@@ -64,23 +88,24 @@ class rebar {
             }
         }
 
-        $info['brand_id'] = $this->cart->brand_id;
-        $info['product_id'] = $this->cart->product_id;
+        if(!empty($this->cart->brand_id)) $info['brand_id'] = $this->cart->brand_id;
+        if(!empty($this->cart->product_id)) $info['product_id'] = $this->cart->product_id;
 
         // Lets send off the affiliate_id and sub_id so that we can track the visitor
-        $info['affiliate_id'] = $this->cart->aff_id;
-        $info['sub_id'] = $this->cart->sub_id;
+        if(!empty($this->cart->aff_id)) $info['affiliate_id'] = $this->cart->aff_id;
+        if(!empty($this->cart->sub_id)) $info['sub_id'] = $this->cart->sub_id;
 
         $i = base64_encode(json_encode($info));
 
         // There is a lot of information in the visitor object. I think once the tracking is fired, you could potentially use that call to set all the values locally.
         $obj = $this->rebar_post("crm/track_visit?_id=$id&i=$i");
         $this->cart->visitor_id = $obj->visitor_id;
+        $this->rebar_set_cached_val('visitor_id', $this->cart->visitor_id, 86400 * 30);
         if(!empty($obj->lead->lead_id)){
-            $this->rebar_set_cached_val('lead_id', $this->cart->lead_id, 86400 * 365);
             $this->cart->lead_id = $obj->lead->lead_id;
+            $this->rebar_set_cached_val('lead_id', $this->cart->lead_id, 86400 * 365);
         }
-        return $this->rebar_set_cached_val('visitor_id', $this->cart->visitor_id, 86400 * 30);
+        return true;
     }
 
     function rebar_ensure_cart_exists_or_make_one() {
@@ -104,7 +129,7 @@ class rebar {
     }
 
     function rebar_update_lead_data($fields) {
-        $this->cart->lead_id = (object) $fields->lead_id;
+        $this->cart->lead_id = $fields->lead_id;
         $this->rebar_ensure_lead_exists_or_make_one();
         $lead = $this->rebar_post('crm/create_lead', array(
                 'lead_id' => $this->cart->lead_id,
@@ -128,7 +153,7 @@ class rebar {
         $this->rebar_set_cached_val('lead_id', $this->cart->lead_id, 86400 * 365);
     }
 
-    function rebar_get_cart_info($cart_id = '') {
+    function rebar_get_cart_info() {
         if (empty($this->cart->cart_id)) {
             if (!empty($this->cart))
                 return $this->cart;
@@ -240,10 +265,10 @@ class rebar {
     function rebar_params($extra_params) {
         global $config;
         return array_merge(array(
-                'cart_id' => $this->rebar_get_cached_val('cart_id'),
-                'environment' => $config['rebar']['environment'],
-                'secret' => $config['rebar']['secret']
-            ), (array) $extra_params);
+            'cart_id' => $this->rebar_get_cached_val('cart_id'),
+            'environment' => $config['rebar']['environment'],
+            'secret' => $config['rebar']['secret']
+        ), (array) $extra_params);
     }
 
     function debug_print($str) {
