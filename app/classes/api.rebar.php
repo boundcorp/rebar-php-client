@@ -329,6 +329,7 @@ class rebar {
     function rebar_output_shipping_data_form($action = '') {
         $this->rebar_print_js_include();
         ?>
+        <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.5.0/pure-min.css">
         <form id="validatedLeadForm" class="pure-form" action="<?php echo $action ?>" method="post">
             <?php
             if (!empty($this->cart->lead)) {
@@ -363,7 +364,7 @@ class rebar {
             <input type=text class="name new_lead" name="city" required value="<?php echo @$this->cart->lead->city ?>" placeholder="City"><br /><br />
             <input type=text class="name new_lead" name="region" value="<?php echo @$this->cart->lead->region ?>" placeholder="State or Region"><br /><br />
             <input type=text class="name new_lead" name="country" required value="<?php echo @$this->cart->lead->country ?>" placeholder="Country"><br /><br />
-            <input type="image" width="460" src="theme/images/continue.png" class="btn btn-success btn-lg btn-block btn-continue" value="Next" >
+            <input type="image" src="theme/images/continue.png" class="btn btn-success btn-lg btn-block btn-continue" value="Next" >
         </form>
         <script>
             $(function () {
@@ -392,6 +393,10 @@ class rebar {
     function rebar_output_billing_data_form($action = '') {
         global $config;
         ?>
+
+        <link rel="stylesheet" href="rebar-client/card/card.css">
+        <script src="rebar-client/card/card.js"></script>
+
         <h2> Provide Your Credit Card Details Below </h2> <br/>
         <?php
         if ($config['rebar']['debug'] == 1) {
@@ -494,6 +499,32 @@ class rebar {
             <a href="#cvvTip" class="cvvTip">What's this?</a><br /><br />
             <input type="image" width="460" src="theme/images/purchase.png" class="btn btn-success btn-lg btn-block btn-purchase" id="vaultthis" name="vault" value="BUY NOW">
         </form>
+        <script>
+                    $('form').card({
+                        // a selector or jQuery object for the container
+                        // where you want the card to appear
+                        container: '.card-wrapper', // *required*
+                        nameInput: 'input[name="first_name"], input[name="last_name"]',
+                        
+                       
+                        width: 380, // optional — default 350px
+                        formatting: true, // optional - default true
+
+                        // Strings for translation - optional
+                        messages: {
+                            validDate: 'valid\ndate', // optional - default 'valid\nthru'
+                            monthYear: 'mm/yyyy', // optional - default 'month/year'
+                        },
+
+                        // Default values for rendered fields - options
+                        values: {
+                            number: '•••• •••• •••• ••••',
+                            name: 'Full Name',
+                            expiry: '••/••',
+                            cvc: '•••'
+                        }
+                    });
+                 </script>
         <div id="checkoutform" style="display:none">
             <form id="hiddencheckout" action="<?php echo $action ?>" method="post">
                 <input type="text" id="insert_token" name="token"></input>
